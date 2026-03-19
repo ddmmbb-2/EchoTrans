@@ -16,7 +16,8 @@ from deep_translator import GoogleTranslator
 BASE_MODEL_DIR = "model" 
 
 VOLUME_THRESHOLD = 400 
-PAUSE_THRESHOLD = 0.3  
+# 註解掉原本寫死的停頓秒數，改由介面動態控制
+# PAUSE_THRESHOLD = 0.3  
 
 # ================= 選單與語言對應設定 =================
 SPEECH_MODELS = {
@@ -38,7 +39,7 @@ LANGUAGE_OPTIONS = {
 class UltimateCourseApp:
     def __init__(self):
         self.root = tk.Tk()
-        self.root.title("AI 課程翻譯工作台 (自訂API版)")
+        self.root.title("AI 課程翻譯工作台 (自訂API + 停頓微調版)")
         
         self.available_models = self.scan_models()
         if not self.available_models:
@@ -50,7 +51,9 @@ class UltimateCourseApp:
         self.api_url_var = tk.StringVar(value="http://127.0.0.1:11434/v1/chat/completions")
         self.model_name_var = tk.StringVar(value="gemma3:12b")
         
-        # 新增變數：記錄進階設定是否展開
+        # 新增變數：停頓秒數設定 (預設 0.3 秒)
+        self.pause_threshold_var = tk.StringVar(value="0.3")
+        
         self.is_advanced_shown = False
         
         self.setup_window()
@@ -87,7 +90,7 @@ class UltimateCourseApp:
 
     def setup_window(self):
         sw, sh = self.root.winfo_screenwidth(), self.root.winfo_screenheight()
-        win_w, win_h = int(sw * 0.85), 320 # 保持稍微寬裕的高度
+        win_w, win_h = int(sw * 0.85), 320 
         self.root.geometry(f"{win_w}x{win_h}+{int(sw*0.075)}+{sh-380}")
         self.root.overrideredirect(True)
         self.root.attributes("-topmost", True)
@@ -112,7 +115,7 @@ class UltimateCourseApp:
         ctrl_frame = tk.Frame(self.right_frame, bg='#252525')
         ctrl_frame.pack(fill='x', padx=5, pady=5)
         
-        # 1. 語音模型與語言 (常駐顯示)
+        # 1. 常駐控制 (語音模型、語言)
         row1 = tk.Frame(ctrl_frame, bg='#252525')
         row1.pack(fill='x', pady=2)
         tk.Label(row1, text="🎙️ 聽寫模型:", font=("Microsoft JhengHei", 10), fg="#AAAAAA", bg='#252525', width=10, anchor='e').pack(side='left')
@@ -127,12 +130,11 @@ class UltimateCourseApp:
         self.lang_combo.pack(side='left', fill='x', expand=True, padx=5)
 
         # 2. 展開/收合按鈕
-        self.toggle_btn = tk.Button(ctrl_frame, text="🔽 展開進階設定 (API)", font=("Microsoft JhengHei", 9), bg="#444444", fg="#FFFFFF", relief="flat", command=self.toggle_advanced)
+        self.toggle_btn = tk.Button(ctrl_frame, text="🔽 展開進階設定 (API / 停頓)", font=("Microsoft JhengHei", 9), bg="#444444", fg="#FFFFFF", relief="flat", command=self.toggle_advanced)
         self.toggle_btn.pack(fill='x', pady=(5, 0), padx=5)
 
         # 3. 進階設定區域 (預設隱藏)
         self.advanced_frame = tk.Frame(ctrl_frame, bg='#252525')
-        # 這裡不寫 pack()，等按鈕被點擊時才 pack
         
         row_api = tk.Frame(self.advanced_frame, bg='#252525')
         row_api.pack(fill='x', pady=2)
@@ -146,6 +148,14 @@ class UltimateCourseApp:
         self.model_name_entry = ttk.Entry(row_model_name, textvariable=self.model_name_var)
         self.model_name_entry.pack(side='left', fill='x', expand=True, padx=5)
 
+        # 新增：停頓秒數設定
+        row_pause = tk.Frame(self.advanced_frame, bg='#252525')
+        row_pause.pack(fill='x', pady=2)
+        tk.Label(row_pause, text="⏱️ 停頓秒數:", font=("Microsoft JhengHei", 10), fg="#AAAAAA", bg='#252525', width=10, anchor='e').pack(side='left')
+        # 使用 Spinbox 讓使用者方便增減數字
+        self.pause_spin = ttk.Spinbox(row_pause, textvariable=self.pause_threshold_var, from_=0.1, to=3.0, increment=0.1)
+        self.pause_spin.pack(side='left', fill='x', expand=True, padx=5)
+
         # Log 區域
         self.log_area = scrolledtext.ScrolledText(self.right_frame, font=("Microsoft JhengHei", 11), bg="#101010", fg="#CCCCCC", state='disabled', borderwidth=0)
         self.log_area.pack(fill='both', expand=True, padx=5, pady=(5, 5))
@@ -158,14 +168,21 @@ class UltimateCourseApp:
         self.root.bind("<Button-3>", lambda e: self.menu.post(e.x_root, e.y_root))
 
     def toggle_advanced(self):
-        """切換進階設定介面的顯示與隱藏"""
         self.is_advanced_shown = not self.is_advanced_shown
         if self.is_advanced_shown:
-            self.toggle_btn.config(text="🔼 收合進階設定 (API)")
-            self.advanced_frame.pack(fill='x', pady=(2, 0)) # 顯示進階區域
+            self.toggle_btn.config(text="🔼 收合進階設定 (API / 停頓)")
+            self.advanced_frame.pack(fill='x', pady=(2, 0)) 
         else:
-            self.toggle_btn.config(text="🔽 展開進階設定 (API)")
-            self.advanced_frame.pack_forget() # 隱藏進階區域
+            self.toggle_btn.config(text="🔽 展開進階設定 (API / 停頓)")
+            self.advanced_frame.pack_forget()
+
+    def get_pause_threshold(self):
+        """安全取得停頓秒數，若輸入無效則回傳預設值 0.3"""
+        try:
+            val = float(self.pause_threshold_var.get())
+            return max(0.1, val) # 最少 0.1 秒，防止設定為 0 造成無限觸發
+        except ValueError:
+            return 0.3
 
     def on_model_change(self, event=None):
         selected_display = self.speech_model_var.get()
@@ -235,7 +252,8 @@ class UltimateCourseApp:
                 
                 if rms < VOLUME_THRESHOLD:
                     if silence_start is None: silence_start = time.time()
-                    if (time.time() - silence_start) >= PAUSE_THRESHOLD and not has_sent_final:
+                    # 這裡動態讀取介面上的停頓秒數
+                    if (time.time() - silence_start) >= self.get_pause_threshold() and not has_sent_final:
                         if p_text:
                             self.trigger_ai_task(p_text)
                             has_sent_final = True
