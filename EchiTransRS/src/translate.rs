@@ -160,13 +160,13 @@ fn parse_stream(resp: Response, mark: (u64, u32), events: &Sender<Event>, target
     Ok(())
 }
 
-/// NVIDIA 6 GiB VRAM 可嘗試（實驗性），8 GiB 建議；不靜默退回 CPU。
+/// NVIDIA 6 GiB VRAM 可以嘗試執行（實驗性）；8 GiB 建議。維持純 GPU，絕不靜默退回 CPU。
 fn check_gpu() -> Result<()> {
     #[cfg(not(windows))]
     bail!("v0.7 只提供 Windows NVIDIA GPU 版本");
     let mut cmd = Command::new("nvidia-smi.exe");
     cmd.args(["--query-gpu=memory.total", "--format=csv,noheader,nounits"]);
-    #[cfg(windows)] { cmd.creation_flags(0x0800_0000); } // CREATE_NO_WINDOW：隱藏硬體偵測終端。
+    #[cfg(windows)] { cmd.creation_flags(0x0800_0000); } // CREATE_NO_WINDOW：避免硬體偵測瞬間跳出黑色終端。
     let out = cmd.output().context("找不到 NVIDIA 驅動工具 nvidia-smi；本版要求 NVIDIA 獨立 GPU")?;
     if !out.status.success() { bail!("無法取得 NVIDIA GPU VRAM 資訊"); }
     let text = String::from_utf8_lossy(&out.stdout);

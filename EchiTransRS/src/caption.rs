@@ -9,7 +9,7 @@ pub struct Line {
     pub translated: String,
     pub demoted_at: Option<Instant>,
 }
-pub const MAX_CAPTION_HISTORY: usize = 500; // 記憶體有界，原文完整歷史由 main.rs 落盤。
+pub const MAX_CAPTION_HISTORY: usize = 500; // 有界記憶體，原文的完整歷史仍由 main.rs 落盤。
 #[derive(Default)]
 pub struct History { lines: VecDeque<Line> }
 impl History {
@@ -32,11 +32,11 @@ impl History {
             x.translated = value; true
         } else { false }
     }
-    /// 待機判斷不需每一幀複製歷史。
+    /// 快速待機判斷不應在每一幀複製數百句。
     pub fn is_empty(&self) -> bool { self.lines.is_empty() }
-    /// 字幕區可回捲本次全部記憶體歷史。
+    /// UI 滾動區使用本次全部保留的句子。
     pub fn all(&self) -> Vec<Line> { self.lines.iter().cloned().collect() }
-    /// 最近三句保留為聚焦功能，但不刪掉更早紀錄。
+    /// 最近三句僅作視覺聚焦與相容呼叫，不裁掉之前的字幕。
     pub fn recent(&self) -> Vec<Line> { self.lines.iter().rev().take(3).cloned().collect::<Vec<_>>().into_iter().rev().collect() }
     pub fn clear(&mut self) { self.lines.clear(); }
 }

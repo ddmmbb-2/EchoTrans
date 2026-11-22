@@ -22,8 +22,8 @@ cargo build --release
 - `src/translate.rs`：依目標語言動態組合官方建議類型的 Hy-MT2 提示；zh-Hant 特別指定台灣用字，接著以純 Rust `ferrous-opencc` 的 `S2twp` 本機轉換處理譯文（不碰原文），支援增量字幕；若 OpenCC 初始化失敗，照常使用模型原始譯文。
 - `src/event.rs`：翻譯失敗改為 UI 自行翻譯的事件。
 - `src/model.rs`：更新狀態說明與版本識別。
-- `src/audio.rs`：保留收音與 VAD。`src/caption.rs`：擴充最多 500 句字幕歷史，預設聚焦最新約三句，可用滾輪向上回看，回到底部恢復追蹤新字幕。
-- `src/main.rs`：Windows GUI 子系統啟動不顯示終端；`translate.rs` 也隱藏 GPU 偵測及翻譯子程序的終端。
+- `src/audio.rs`：保留收音與 VAD。`src/caption.rs`：擴充為最多 500 句字幕歷史，畫面預設顯示最新約三句，可用滾輪向上回看，回到底部恢復追蹤新字幕。
+- `src/main.rs`：Windows GUI 子系統啟動不顯示黑色終端；`translate.rs` 也隱藏 GPU 偵測及翻譯子程序的終端。
 
 ## 注意
 
