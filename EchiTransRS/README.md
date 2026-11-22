@@ -11,7 +11,7 @@ cargo test
 cargo build --release
 ```
 
-編譯完成後，執行 `target\release\ramen-listen.exe`。模型和本機 Vulkan 執行元件仍依舊架構在首次啟動時自動下載，使用者端不需 Python、uv、Ollama、Argos 或 Google 翻譯。建置環境本身仍需 Rust 工具鏈。Windows 版本保留現有 NVIDIA 獨立 GPU、至少 8 GiB VRAM 條件。
+編譯完成後，執行 `target\release\ramen-listen.exe`。模型和本機 Vulkan 執行元件仍依舊架構在首次啟動時自動下載，使用者端不需 Python、uv、Ollama、Argos 或 Google 翻譯。建置環境本身仍需 Rust 工具鏈。Windows 版本要求 NVIDIA 獨立 GPU，最低 6 GiB VRAM（測試支援）、建議 8 GiB；雙模型在 6 GiB 卡上的穩定性仍需持續驗證。
 
 ## v0.7 實際修改
 
@@ -22,7 +22,8 @@ cargo build --release
 - `src/translate.rs`：依目標語言動態組合官方建議類型的 Hy-MT2 提示；zh-Hant 特別指定台灣用字，接著以純 Rust `ferrous-opencc` 的 `S2twp` 本機轉換處理譯文（不碰原文），支援增量字幕；若 OpenCC 初始化失敗，照常使用模型原始譯文。
 - `src/event.rs`：翻譯失敗改為 UI 自行翻譯的事件。
 - `src/model.rs`：更新狀態說明與版本識別。
-- `src/audio.rs` 與 `src/caption.rs`：沿用原程式，保留收音、三句字幕與版本控制。
+- `src/audio.rs`：保留收音與 VAD。`src/caption.rs`：擴充最多 500 句字幕歷史，預設聚焦最新約三句，可用滾輪向上回看，回到底部恢復追蹤新字幕。
+- `src/main.rs`：Windows GUI 子系統啟動不顯示終端；`translate.rs` 也隱藏 GPU 偵測及翻譯子程序的終端。
 
 ## 注意
 

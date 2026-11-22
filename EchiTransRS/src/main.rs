@@ -1,16 +1,18 @@
+#![cfg_attr(windows, windows_subsystem = "windows")] // GUI 不顯示主控台；警告留在 UI、翻譯服務留日誌。
 /*
 RAMENLISTEN v0.7 — AI / LLM MAINTENANCE CONTRACT (IN SOURCE, NO AGENTS.md)
 - 主維護對象是 LLM。優先易定位、易整段替換、低耦合；不必迎合人類傳統閱讀／排版慣例。
-- 只保留：Rust + Qwen3-ASR 0.6B + Hy-MT2-1.8B + GPU + 單視窗三句字幕 + 原文存檔。
+- 只保留：Rust + Qwen3-ASR 0.6B + Hy-MT2-1.8B + GPU + 單視窗最新三句字幕／可上捲歷史 + 原文存檔。
 - v0.7：UI 自動跟隨 Windows 顯示語系；UI/翻譯目標互不影響；預設翻譯 zh-Hant（台灣）。
 - 靜態 UI 翻譯集中 i18n.rs，不經過 AI；翻譯目標帶入每一筆 Hy-MT2 工作，繁體才進 OpenCC。
 - 變更設定即時落盤 settings-v0.7.json，舊 v0.6 設定自動遷移；不建立 AGENTS.md。
 - 嚴禁重新引入 Google、Argos、Python、uv、Moonshine、Ollama、自動進階 LLM 或 CPU 備援。
+- Windows 最低 6 GiB NVIDIA VRAM（測試支援）、建議 8 GiB；主 GUI 與子程序都不顯示終端。
 - 模型/執行元件自動下載、驗證格式、啟動預載；使用者只開啟 EXE，不要要求手動安裝。
 - 原文只由 Event::Final 落盤；Preview、Translation 絕對不能存入逐字稿。
 - 啟動預設只有無邊框半透明置頂字幕。上方拖曳列；設定面板必須手動開啟。
 - source of truth: config.rs(設定), model.rs(ASR), translate.rs(Hy), work.rs(麥克風與事件),
-  caption.rs(三句字幕), audio.rs(收音/VAD), main.rs(唯一視窗/存檔), event.rs(訊息),
+  caption.rs(500 句記憶體歷史／最新三句), audio.rs(收音/VAD), main.rs(唯一視窗/存檔), event.rs(訊息),
   i18n.rs(固定 UI 詞庫／Windows 顯示語系)。
 - 若要更新 llama.cpp 版本，需同步更新 translate.rs 釘選資產並驗證 Windows Vulkan 發行檔。
 */
@@ -169,7 +171,7 @@ impl App {
         }
         // v0.7：用事件旗標判斷失敗，不再以中文「失敗」字串判斷，避免多語 UI 壞掉。
         // 無字幕時每幀使用當前 UI 語言設定待機文字；已有辨識結果絕不覆蓋。
-        if !self.recording && !self.stopping && self.captions.recent().is_empty() {
+        if !self.recording && !self.stopping && self.captions.is_empty() {
             if self.ready() {
                 self.original_now = self.t(K::ModelLoaded).into();
                 self.translated_now = self.t(K::ClickStart).into();
@@ -214,23 +216,27 @@ impl App {
     fn caption_area(&mut self, ctx: &egui::Context) {
         let bg = self.settings.background_opacity;
         let font = self.settings.font_size;
-        let lines = self.captions.recent();
+        let lines = self.captions.all(); // 本次字幕可回捲，視窗高度仍維持約三句。
         egui::CentralPanel::default()
             .frame(egui::Frame::default().fill(egui::Color32::from_rgba_unmultiplied(10, 16, 27, bg))
                 .inner_margin(egui::Margin::same(10)))
             .show(ctx, |ui| {
-                egui::ScrollArea::vertical().auto_shrink([false, false]).stick_to_bottom(true).show(ui, |ui| {
+                // 在底端持續追蹤新字幕；往上捲時暫停追尾，滾回最底恢復。
+                egui::ScrollArea::vertical().id_salt("caption-scrollback")
+                    .auto_shrink([false, false]).stick_to_bottom(true)
+                    .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::VisibleWhenNeeded)
+                    .show(ui, |ui| {
                     if lines.is_empty() {
                         subtitle(ui, &self.original_now, &self.translated_now, font, 0.98, 155);
                     } else {
                         for (i, line) in lines.iter().enumerate() {
                             let age = lines.len() - 1 - i;
-                            let target: f32 = match age { 0 => 0.98, 1 => 0.58, _ => 0.30 };
+                            let target: f32 = match age { 0 => 0.98, 1 => 0.78, _ => 0.70 }; // 舊字幕可閱讀
                             let opacity = line.demoted_at.map_or(target, |since| {
                                 let t = (since.elapsed().as_secs_f32() / 0.75).min(1.0);
                                 0.98 + (target - 0.98) * t
                             });
-                            let box_alpha = match age { 0 => 150, 1 => 75, _ => 26 };
+                            let box_alpha = match age { 0 => 150, 1 => 95, _ => 65 };
                             subtitle(ui, &line.original, &line.translated, font, opacity, box_alpha);
                             ui.add_space(5.0);
                         }

@@ -52,7 +52,7 @@ impl Model {
         events.send(Event::AsrStatus("正在將 Qwen3-ASR 載入 GPU…".into())).ok();
         let recognizer = AsrInference::load(dir.as_path(), Backend::best()).context("載入 Qwen3-ASR 失敗")?;
         let device = recognizer.device_description();
-        if !device.contains("DiscreteGpu") { return Err(anyhow!("需要獨立 GPU（8GB VRAM 起）；目前運算裝置：{device}")); }
+        if !device.contains("DiscreteGpu") { return Err(anyhow!("需要獨立 GPU（最低 6GB VRAM；建議 8GB）；目前運算裝置：{device}")); }
         events.send(Event::AsrReady(format!("Qwen3-ASR 0.6B • {}", device))).ok();
         let wav = config::dir().join(format!("qwen-temp-{}.wav", std::process::id()));
         Ok(Self { recognizer, wav })

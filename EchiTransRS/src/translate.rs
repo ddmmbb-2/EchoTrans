@@ -160,18 +160,19 @@ fn parse_stream(resp: Response, mark: (u64, u32), events: &Sender<Event>, target
     Ok(())
 }
 
-/// First release targets NVIDIA GPUs with at least 8 GiB VRAM; refuse silent CPU/hybrid inference.
+/// NVIDIA 6 GiB VRAM 可嘗試（實驗性），8 GiB 建議；不靜默退回 CPU。
 fn check_gpu() -> Result<()> {
     #[cfg(not(windows))]
     bail!("v0.7 只提供 Windows NVIDIA GPU 版本");
-    let out = Command::new("nvidia-smi.exe")
-        .args(["--query-gpu=memory.total", "--format=csv,noheader,nounits"])
-        .output().context("找不到 NVIDIA 驅動工具 nvidia-smi；本版要求 NVIDIA 獨立 GPU")?;
+    let mut cmd = Command::new("nvidia-smi.exe");
+    cmd.args(["--query-gpu=memory.total", "--format=csv,noheader,nounits"]);
+    #[cfg(windows)] { cmd.creation_flags(0x0800_0000); } // CREATE_NO_WINDOW：隱藏硬體偵測終端。
+    let out = cmd.output().context("找不到 NVIDIA 驅動工具 nvidia-smi；本版要求 NVIDIA 獨立 GPU")?;
     if !out.status.success() { bail!("無法取得 NVIDIA GPU VRAM 資訊"); }
     let text = String::from_utf8_lossy(&out.stdout);
     let max_mib = text.lines().filter_map(|line| line.trim().parse::<u64>().ok()).max()
         .context("NVIDIA GPU VRAM 資訊格式無法辨識")?;
-    if max_mib < 8192 { bail!("GPU VRAM 不足：{max_mib} MiB；RamenListen v0.7 至少需要 8192 MiB"); }
+    if max_mib < 6144 { bail!("GPU VRAM 不足：{max_mib} MiB；RamenListen 至少需要 6144 MiB (6 GiB)"); }
     Ok(())
 }
 
